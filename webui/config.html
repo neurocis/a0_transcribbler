@@ -1,0 +1,92 @@
+<html>
+<head>
+    <title>A0-Transcribler</title>
+</head>
+
+<body>
+    <div x-data>
+        <template x-if="config">
+            <div>
+                <div class="section-title">A0-Transcribler</div>
+                <div class="section-description">
+                    Automatically transcribes audio file attachments and YouTube video audio
+                    before LLM processing. Reuses Agent Zero's built-in Whisper STT engine.
+                </div>
+
+                <div class="field">
+                    <div class="field-label">
+                        <div class="field-title">Audio Transcription</div>
+                        <div class="field-description">
+                            Automatically detect and transcribe audio file attachments
+                            (voice messages, .ogg, .mp3, .wav, etc.) before the LLM processes the message.
+                        </div>
+                    </div>
+                    <div class="field-control">
+                        <label class="toggle">
+                            <input type="checkbox" x-model="config.audio_transcription_enabled" />
+                            <span class="toggler"></span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="field">
+                    <div class="field-label">
+                        <div class="field-title">YouTube Transcription</div>
+                        <div class="field-description">
+                            Detect YouTube URLs in messages, download the audio track,
+                            and transcribe it. Requires <code>yt-dlp</code> (installed automatically).
+                        </div>
+                    </div>
+                    <div class="field-control">
+                        <label class="toggle">
+                            <input type="checkbox" x-model="config.youtube_transcription_enabled" />
+                            <span class="toggler"></span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="field">
+                    <div class="field-label">
+                        <div class="field-title">YouTube Max Duration (seconds)</div>
+                        <div class="field-description">
+                            Maximum YouTube video duration in seconds. Videos longer than this
+                            will be skipped. Set to 0 for no limit.
+                        </div>
+                    </div>
+                    <div class="field-control">
+                        <input type="number" x-model.number="config.youtube_max_duration" min="0" step="60" />
+                    </div>
+                </div>
+
+                <div class="field">
+                    <div class="field-label">
+                        <div class="field-title">Transcription Label</div>
+                        <div class="field-description">
+                            Prefix label added before each transcription block in the message.
+                        </div>
+                    </div>
+                    <div class="field-control">
+                        <input type="text" x-model="config.transcription_label" />
+                    </div>
+                </div>
+
+                <div class="field">
+                    <div class="field-label">
+                        <div class="field-title">Include Filename</div>
+                        <div class="field-description">
+                            Show the original audio filename in the transcription header.
+                        </div>
+                    </div>
+                    <div class="field-control">
+                        <label class="toggle">
+                            <input type="checkbox" x-model="config.include_filename" />
+                            <span class="toggler"></span>
+                        </label>
+                    </div>
+                </div>
+
+            </div>
+        </template>
+    </div>
+</body>
+</html>

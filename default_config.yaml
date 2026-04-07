@@ -1,0 +1,29 @@
+# A0-Transcribler default configuration
+
+# Enable/disable audio file transcription
+audio_transcription_enabled: true
+
+# Enable/disable YouTube URL transcription
+youtube_transcription_enabled: true
+
+# Maximum YouTube video duration in seconds (0 = no limit)
+youtube_max_duration: 3600
+
+# Audio file extensions to detect and transcribe
+audio_extensions:
+  - .ogg
+  - .oga
+  - .mp3
+  - .wav
+  - .m4a
+  - .opus
+  - .flac
+  - .aac
+  - .wma
+  - .webm
+
+# Prefix label added before each transcription block in the message
+transcription_label: "[Transcription]"
+
+# Include original filename in transcription header
+include_filename: true

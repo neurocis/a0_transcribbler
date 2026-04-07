@@ -1,0 +1,78 @@
+# A0-Transcribler
+
+Automatic audio transcription plugin for Agent Zero. Transcribes audio file
+attachments and YouTube video audio **before** LLM processing, injecting the
+transcription text directly into the conversation context.
+
+## Features
+
+- **Audio File Transcription** — Automatically detects and transcribes audio
+  attachments (voice messages, audio files) sent via Telegram, WebUI, or any
+  other input channel. Supports `.ogg`, `.mp3`, `.wav`, `.m4a`, `.opus`,
+  `.flac`, `.aac`, `.wma`, `.webm`, and more.
+
+- **YouTube Video Transcription** *(stretch goal)* — Detects YouTube URLs in
+  messages, downloads the audio track via `yt-dlp`, and transcribes it. Includes
+  configurable duration limits to prevent excessively long downloads.
+
+- **Pre-LLM Injection** — Transcriptions are prepended to the user message
+  before the LLM sees it, so the agent can reason about audio content naturally.
+
+- **Reuses Existing STT** — Built on Agent Zero's built-in OpenAI Whisper
+  engine. No additional STT models or API keys required.
+
+## How It Works
+
+1. When a user sends a message, the plugin intercepts it via the
+   `hist_add_user_message` extensible hook (before history is written).
+2. It scans attachments for audio file extensions.
+3. It scans the message text for YouTube URLs.
+4. Detected audio is converted to WAV (16kHz mono) via `ffmpeg` and
+   transcribed using the Whisper model configured in Agent Zero settings.
+5. Transcription text is prepended to the original message with a clear label.
+6. The LLM receives the enriched message and can respond to the audio content.
+
+## Requirements
+
+- **ffmpeg** — Pre-installed in Agent Zero Docker images.
+- **OpenAI Whisper** — Pre-installed in Agent Zero (`openai-whisper` package).
+- **yt-dlp** — Installed automatically by the plugin's `hooks.py` on first
+  install. Required only for YouTube transcription.
+
+## Configuration
+
+All settings are accessible from the Agent Zero Plugin Settings UI:
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `audio_transcription_enabled` | `true` | Enable/disable audio file transcription |
+| `youtube_transcription_enabled` | `true` | Enable/disable YouTube URL transcription |
+| `youtube_max_duration` | `3600` | Max YouTube video length in seconds (0 = no limit) |
+| `audio_extensions` | see below | List of audio file extensions to detect |
+| `transcription_label` | `[Transcription]` | Label prefix for transcription blocks |
+| `include_filename` | `true` | Include filename in transcription header |
+
+## Installation
+
+1. Place the `a0_transcribler` folder in `usr/plugins/`.
+2. Enable the plugin in the Agent Zero Plugins UI.
+3. The plugin will auto-install `yt-dlp` on first activation.
+
+## Example Output
+
+When a user sends a voice message saying "Remind me to buy groceries", the LLM
+receives:
+
+```
+[Transcription] (voice_abc123.ogg):
+Remind me to buy groceries
+
+---
+
+[Telegram message from user]
+[Voice message — see attachment]
+```
+
+## Version
+
+1.0.0

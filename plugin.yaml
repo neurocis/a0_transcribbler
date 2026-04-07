@@ -1,0 +1,13 @@
+name: a0_transcribler
+title: A0-Transcribler
+description: >
+  Automatically transcribes audio file attachments and YouTube video audio
+  before LLM processing. Reuses Agent Zero's built-in Whisper STT engine.
+  Supports voice messages, audio files (.ogg, .mp3, .wav, .m4a, .opus, .flac,
+  .aac, .wma), and YouTube URL transcription via yt-dlp.
+version: 1.0.0
+settings_sections:
+  - agent
+per_project_config: false
+per_agent_config: false
+always_enabled: false
