@@ -13,25 +13,40 @@ import urllib.request
 import urllib.error
 from typing import Optional
 from urllib.parse import urlparse
+import shutil
 
 from helpers import files, settings, whisper as whisper_helper
 from helpers.print_style import PrintStyle
 
-# Import yt-dlp availability check from hooks
-try:
-    from usr.plugins.a0_transcribbler.hooks import check_yt_dlp_available
-except ImportError:
-    def check_yt_dlp_available() -> bool:
-        """Fallback check if hooks module is unavailable."""
-        try:
-            result = subprocess.run(
-                ["yt-dlp", "--version"], capture_output=True, timeout=10
-            )
-            return result.returncode == 0
-        except (FileNotFoundError, subprocess.TimeoutExpired):
-            return False
 
-# Audio file extensions considered transcribable
+def _resolve_yt_dlp_path() -> str:
+    """Find the full path to yt-dlp binary.
+
+    Tries shutil.which first, then checks known installation locations.
+    Returns the full path or 'yt-dlp' as bare fallback (relies on PATH).
+    """
+    # Try standard PATH lookup
+    found = shutil.which("yt-dlp")
+    if found:
+        return found
+
+    # Check known locations (covers venv, pip --user, system installs)
+    for candidate in [
+        "/opt/venv/bin/yt-dlp",
+        "/opt/venv-a0/bin/yt-dlp",
+        "/usr/local/bin/yt-dlp",
+        "/usr/bin/yt-dlp",
+        os.path.expanduser("~/.local/bin/yt-dlp"),
+    ]:
+        if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
+            return candidate
+
+    # Last resort: return bare name and hope PATH works at call time
+    return "yt-dlp"
+
+
+# Resolve once at import time
+YT_DLP = _resolve_yt_dlp_path()
 DEFAULT_AUDIO_EXTENSIONS = {
     ".ogg", ".oga", ".mp3", ".wav", ".m4a",
     ".opus", ".flac", ".aac", ".wma", ".webm",
@@ -402,7 +417,7 @@ def _fetch_youtube_subtitles(
         try:
             result = subprocess.run(
                 [
-                    "yt-dlp",
+                    YT_DLP,
                     "--no-playlist",
                     "--skip-download",
                     "--sub-format", "vtt/srt/best",
@@ -454,14 +469,11 @@ async def transcribe_youtube_url(
 
     Returns transcription text or None on failure.
     """
-    # Check if yt-dlp is available using centralized check
-    if not check_yt_dlp_available():
-        PrintStyle.error(
-            "A0-Transcribbler: yt-dlp is not installed. "
-            "YouTube transcription is unavailable. "
-            "Please reinstall the plugin or run: pip install yt-dlp"
-        )
-        return None
+    # Skip pre-flight check — just try to use yt-dlp directly.
+    # Pre-flight checks (import yt_dlp, shutil.which, subprocess) are
+    # unreliable inside Agent Zero's extension execution context due to
+    # environment differences. Instead we let the actual yt-dlp subprocess
+    # calls fail naturally and handle errors in the existing try/except blocks.
 
     tmp_dir = tempfile.mkdtemp(prefix="a0_transcribbler_yt_")
     audio_path = os.path.join(tmp_dir, "audio")
@@ -471,7 +483,7 @@ async def transcribe_youtube_url(
         # Check duration first
         if max_duration > 0:
             info_result = subprocess.run(
-                ["yt-dlp", "--no-download", "--print", "duration", url],
+                [YT_DLP, "--no-download", "--print", "duration", url],
                 capture_output=True, text=True, timeout=30
             )
             if info_result.returncode == 0:
@@ -502,7 +514,7 @@ async def transcribe_youtube_url(
 
         dl_result = subprocess.run(
             [
-                "yt-dlp",
+                YT_DLP,
                 "--no-playlist",
                 "-x",
                 "--audio-format", "wav",
