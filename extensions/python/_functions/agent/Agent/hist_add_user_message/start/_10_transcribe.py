@@ -1,4 +1,4 @@
-"""A0-Transcribler: intercept user messages before LLM processing.
+"""A0-Transcribbler: intercept user messages before LLM processing.
 
 This extension hooks into Agent.hist_add_user_message (start) to detect
 audio file attachments and YouTube URLs, transcribe them, and prepend the
@@ -17,7 +17,7 @@ from helpers.extension import Extension
 from helpers import plugins
 from helpers.print_style import PrintStyle
 
-PLUGIN_NAME = "a0_transcribler"
+PLUGIN_NAME = "a0_transcribbler"
 
 
 def _run_async_in_thread(coro):
@@ -74,7 +74,7 @@ class TranscribeOnMessage(Extension):
             return
 
         # Import transcriber helpers
-        from usr.plugins.a0_transcribler.helpers.transcriber import (
+        from usr.plugins.a0_transcribbler.helpers.transcriber import (
             is_audio_file,
             extract_youtube_urls,
             transcribe_audio_file,
@@ -96,7 +96,7 @@ class TranscribeOnMessage(Extension):
                     continue
 
                 fname = os.path.basename(attachment)
-                PrintStyle.info(f"A0-Transcribler: detected audio: {fname}")
+                PrintStyle.info(f"A0-Transcribbler: detected audio: {fname}")
 
                 try:
                     text = _run_async_in_thread(
@@ -109,7 +109,7 @@ class TranscribeOnMessage(Extension):
                         transcription_parts.append(f"{header}:\n{text}")
                 except Exception as e:
                     PrintStyle.error(
-                        f"A0-Transcribler: failed to transcribe {fname}: {e}"
+                        f"A0-Transcribbler: failed to transcribe {fname}: {e}"
                     )
 
         # --- 2. Transcribe YouTube URLs found in message ---
@@ -118,7 +118,7 @@ class TranscribeOnMessage(Extension):
             max_duration = config.get("youtube_max_duration", 3600)
 
             for url in youtube_urls:
-                PrintStyle.info(f"A0-Transcribler: detected YouTube: {url}")
+                PrintStyle.info(f"A0-Transcribbler: detected YouTube: {url}")
 
                 try:
                     text = _run_async_in_thread(
@@ -130,7 +130,7 @@ class TranscribeOnMessage(Extension):
                         )
                 except Exception as e:
                     PrintStyle.error(
-                        f"A0-Transcribler: failed to transcribe YouTube "
+                        f"A0-Transcribbler: failed to transcribe YouTube "
                         f"{url}: {e}"
                     )
 
@@ -144,7 +144,7 @@ class TranscribeOnMessage(Extension):
                 f"{original_msg}"
             )
             PrintStyle.success(
-                f"A0-Transcribler: injected {len(transcription_parts)} "
+                f"A0-Transcribbler: injected {len(transcription_parts)} "
                 f"transcription(s) into message"
             )
 

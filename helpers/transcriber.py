@@ -1,4 +1,4 @@
-"""A0-Transcribler core transcription logic.
+"""A0-Transcribbler core transcription logic.
 
 Reuses Agent Zero's built-in Whisper STT engine for audio file transcription
 and yt-dlp for YouTube audio extraction.
@@ -66,7 +66,7 @@ async def transcribe_audio_file(filepath: str) -> Optional[str]:
         local_path = files.fix_dev_path(filepath) if hasattr(files, 'fix_dev_path') else filepath
 
         if not os.path.isfile(local_path):
-            PrintStyle.warning(f"A0-Transcribler: audio file not found: {local_path}")
+            PrintStyle.warning(f"A0-Transcribbler: audio file not found: {local_path}")
             return None
 
         # Convert to WAV using ffmpeg for universal compatibility
@@ -81,7 +81,7 @@ async def transcribe_audio_file(filepath: str) -> Optional[str]:
             )
             if result.returncode != 0:
                 PrintStyle.warning(
-                    f"A0-Transcribler: ffmpeg conversion failed for {filepath}: "
+                    f"A0-Transcribbler: ffmpeg conversion failed for {filepath}: "
                     f"{result.stderr.decode('utf-8', errors='replace')[:200]}"
                 )
                 return None
@@ -101,23 +101,23 @@ async def transcribe_audio_file(filepath: str) -> Optional[str]:
         model_size = stt_settings.get("stt_model_size", "base")
 
         # Transcribe using Whisper
-        PrintStyle.info(f"A0-Transcribler: transcribing {os.path.basename(filepath)}...")
+        PrintStyle.info(f"A0-Transcribbler: transcribing {os.path.basename(filepath)}...")
         transcription_result = await whisper_helper.transcribe(model_size, audio_bytes_b64)
 
         if transcription_result and "text" in transcription_result:
             text = transcription_result["text"].strip()
             if text:
                 PrintStyle.success(
-                    f"A0-Transcribler: transcribed {os.path.basename(filepath)} "
+                    f"A0-Transcribbler: transcribed {os.path.basename(filepath)} "
                     f"({len(text)} chars)"
                 )
                 return text
 
-        PrintStyle.warning(f"A0-Transcribler: empty transcription for {filepath}")
+        PrintStyle.warning(f"A0-Transcribbler: empty transcription for {filepath}")
         return None
 
     except Exception as e:
-        PrintStyle.error(f"A0-Transcribler: transcription error for {filepath}: {e}")
+        PrintStyle.error(f"A0-Transcribbler: transcription error for {filepath}: {e}")
         return None
 
 
@@ -136,13 +136,13 @@ async def transcribe_youtube_url(
             ["yt-dlp", "--version"], capture_output=True, timeout=10
         )
         if yt_dlp_check.returncode != 0:
-            PrintStyle.warning("A0-Transcribler: yt-dlp not available")
+            PrintStyle.warning("A0-Transcribbler: yt-dlp not available")
             return None
     except (FileNotFoundError, subprocess.TimeoutExpired):
-        PrintStyle.warning("A0-Transcribler: yt-dlp not installed or not responding")
+        PrintStyle.warning("A0-Transcribbler: yt-dlp not installed or not responding")
         return None
 
-    tmp_dir = tempfile.mkdtemp(prefix="a0_transcribler_yt_")
+    tmp_dir = tempfile.mkdtemp(prefix="a0_transcribbler_yt_")
     audio_path = os.path.join(tmp_dir, "audio")
     wav_path = os.path.join(tmp_dir, "audio.wav")
 
@@ -158,14 +158,14 @@ async def transcribe_youtube_url(
                     duration = float(info_result.stdout.strip())
                     if duration > max_duration:
                         PrintStyle.warning(
-                            f"A0-Transcribler: YouTube video too long "
+                            f"A0-Transcribbler: YouTube video too long "
                             f"({duration:.0f}s > {max_duration}s limit): {url}"
                         )
                         return None
                 except (ValueError, TypeError):
                     pass  # Can't parse duration, proceed anyway
 
-        PrintStyle.info(f"A0-Transcribler: downloading YouTube audio: {url}")
+        PrintStyle.info(f"A0-Transcribbler: downloading YouTube audio: {url}")
 
         # Download audio only
         dl_result = subprocess.run(
@@ -184,7 +184,7 @@ async def transcribe_youtube_url(
 
         if dl_result.returncode != 0:
             PrintStyle.warning(
-                f"A0-Transcribler: yt-dlp download failed for {url}: "
+                f"A0-Transcribbler: yt-dlp download failed for {url}: "
                 f"{dl_result.stderr[:200]}"
             )
             return None
@@ -198,7 +198,7 @@ async def transcribe_youtube_url(
                 break
 
         if not downloaded:
-            PrintStyle.warning(f"A0-Transcribler: no downloaded file found for {url}")
+            PrintStyle.warning(f"A0-Transcribbler: no downloaded file found for {url}")
             return None
 
         # If not already WAV, convert
@@ -209,7 +209,7 @@ async def transcribe_youtube_url(
                 capture_output=True, timeout=120
             )
             if convert_result.returncode != 0:
-                PrintStyle.warning(f"A0-Transcribler: ffmpeg conversion failed for YouTube audio")
+                PrintStyle.warning(f"A0-Transcribbler: ffmpeg conversion failed for YouTube audio")
                 return None
             final_path = wav_path
         else:
@@ -223,26 +223,26 @@ async def transcribe_youtube_url(
         stt_settings = settings.get_settings()
         model_size = stt_settings.get("stt_model_size", "base")
 
-        PrintStyle.info(f"A0-Transcribler: transcribing YouTube audio from {url}...")
+        PrintStyle.info(f"A0-Transcribbler: transcribing YouTube audio from {url}...")
         transcription_result = await whisper_helper.transcribe(model_size, audio_bytes_b64)
 
         if transcription_result and "text" in transcription_result:
             text = transcription_result["text"].strip()
             if text:
                 PrintStyle.success(
-                    f"A0-Transcribler: transcribed YouTube video "
+                    f"A0-Transcribbler: transcribed YouTube video "
                     f"({len(text)} chars)"
                 )
                 return text
 
-        PrintStyle.warning(f"A0-Transcribler: empty transcription for YouTube: {url}")
+        PrintStyle.warning(f"A0-Transcribbler: empty transcription for YouTube: {url}")
         return None
 
     except subprocess.TimeoutExpired:
-        PrintStyle.error(f"A0-Transcribler: timeout processing YouTube URL: {url}")
+        PrintStyle.error(f"A0-Transcribbler: timeout processing YouTube URL: {url}")
         return None
     except Exception as e:
-        PrintStyle.error(f"A0-Transcribler: YouTube transcription error: {e}")
+        PrintStyle.error(f"A0-Transcribbler: YouTube transcription error: {e}")
         return None
     finally:
         # Cleanup temp files

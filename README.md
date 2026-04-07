@@ -1,4 +1,4 @@
-# A0-Transcribler
+# A0-Transcribbler
 
 Automatic audio transcription plugin for Agent Zero. Transcribes audio file
 attachments and YouTube video audio **before** LLM processing, injecting the
@@ -54,7 +54,7 @@ All settings are accessible from the Agent Zero Plugin Settings UI:
 
 ## Installation
 
-1. Place the `a0_transcribler` folder in `usr/plugins/`.
+1. Place the `a0_transcribbler` folder in `usr/plugins/`.
 2. Enable the plugin in the Agent Zero Plugins UI.
 3. The plugin will auto-install `yt-dlp` on first activation.
 
