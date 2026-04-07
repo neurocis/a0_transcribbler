@@ -27,3 +27,18 @@ transcription_label: "[Transcription]"
 
 # Include original filename in transcription header
 include_filename: true
+
+# --- Audio-Capable Model Bypass ---
+# When enabled, skip audio transcription if the active chat model natively
+# supports audio input. The audio attachment passes through untouched so
+# the LLM can process it directly.
+# NOTE: YouTube URL transcription still runs (models can't fetch URLs).
+model_bypass_enabled: true
+
+# Model name patterns that support native audio input.
+# Matched case-insensitively against the active chat model name.
+# Supports wildcards: * matches any characters.
+audio_capable_models:
+  - "gemini-*"                    # Google Gemini (all versions)
+  - "gpt-4o-audio-*"             # OpenAI audio-preview models
+  - "gpt-4o-mini-audio-*"        # OpenAI mini audio-preview

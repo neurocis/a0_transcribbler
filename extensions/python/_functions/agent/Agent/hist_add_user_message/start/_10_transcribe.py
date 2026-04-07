@@ -4,12 +4,18 @@ This extension hooks into Agent.hist_add_user_message (start) to detect
 audio file attachments and YouTube URLs, transcribe them, and prepend the
 transcription text to the user message so the LLM receives it.
 
+If the active chat model natively supports audio input (e.g. Gemini),
+audio file transcription is skipped and the attachment passes through
+for direct LLM processing. YouTube URLs are always transcribed since
+models cannot fetch remote content.
+
 hist_add_user_message is a sync method called from an async context.
 Since Whisper transcription is async, we run it in a dedicated thread
 with its own event loop.
 """
 
 import asyncio
+import fnmatch
 import os
 import threading
 
@@ -42,6 +48,42 @@ def _run_async_in_thread(coro):
     return result_holder[0]
 
 
+def _is_model_audio_capable(agent, config: dict) -> bool:
+    """Check if the active chat model natively supports audio input.
+
+    Compares the model name against configurable wildcard patterns.
+    Returns True if the model matches any audio-capable pattern.
+    """
+    if not config.get("model_bypass_enabled", True):
+        return False
+
+    patterns = config.get("audio_capable_models", [])
+    if not patterns:
+        return False
+
+    # Get active chat model name from model config
+    try:
+        from plugins._model_config.helpers.model_config import get_chat_model_config
+        chat_cfg = get_chat_model_config(agent)
+        model_name = (chat_cfg.get("name", "") or "").strip().lower()
+        if not model_name:
+            return False
+    except Exception:
+        return False
+
+    # Check against each pattern (case-insensitive wildcard matching)
+    for pattern in patterns:
+        pattern_lower = pattern.strip().lower()
+        if fnmatch.fnmatch(model_name, pattern_lower):
+            PrintStyle.info(
+                f"A0-Transcribbler: model '{model_name}' matches "
+                f"audio-capable pattern '{pattern}' — bypassing audio transcription"
+            )
+            return True
+
+    return False
+
+
 class TranscribeOnMessage(Extension):
 
     def execute(self, **kwargs) -> None:
@@ -69,6 +111,20 @@ class TranscribeOnMessage(Extension):
         config = plugins.get_plugin_config(PLUGIN_NAME, agent) or {}
         audio_enabled = config.get("audio_transcription_enabled", True)
         youtube_enabled = config.get("youtube_transcription_enabled", True)
+
+        if not audio_enabled and not youtube_enabled:
+            return
+
+        # Check if the active model natively supports audio
+        model_handles_audio = _is_model_audio_capable(agent, config)
+
+        # If model handles audio, skip audio transcription but still do YouTube
+        if model_handles_audio and audio_enabled:
+            PrintStyle.info(
+                "A0-Transcribbler: audio-capable model detected, "
+                "skipping audio file transcription (passthrough)"
+            )
+            audio_enabled = False  # Bypass audio transcription
 
         if not audio_enabled and not youtube_enabled:
             return

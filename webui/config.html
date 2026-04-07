@@ -85,6 +85,29 @@
                     </div>
                 </div>
 
+                <div class="section-title" style="margin-top: 1.5em;">Audio-Capable Model Bypass</div>
+                <div class="section-description">
+                    When the active chat model natively supports audio input (e.g. Gemini),
+                    skip audio file transcription and let the model process audio directly.
+                    YouTube URL transcription still runs since models cannot access URLs.
+                </div>
+
+                <div class="field">
+                    <div class="field-label">
+                        <div class="field-title">Enable Model Bypass</div>
+                        <div class="field-description">
+                            Automatically skip audio transcription when the active model
+                            matches a known audio-capable pattern.
+                        </div>
+                    </div>
+                    <div class="field-control">
+                        <label class="toggle">
+                            <input type="checkbox" x-model="config.model_bypass_enabled" />
+                            <span class="toggler"></span>
+                        </label>
+                    </div>
+                </div>
+
             </div>
         </template>
     </div>
