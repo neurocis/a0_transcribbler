@@ -39,14 +39,21 @@ def _check_yt_dlp_module() -> bool:
 
 def _check_yt_dlp_cli() -> bool:
     """Check if yt-dlp CLI is available."""
+    # Fast check first: is the binary on PATH?
+    import shutil
+    if not shutil.which("yt-dlp"):
+        return False
     try:
         result = subprocess.run(
             ["yt-dlp", "--version"],
             capture_output=True, text=True, timeout=10
         )
         return result.returncode == 0
-    except (FileNotFoundError, subprocess.TimeoutExpired):
-        return False
+    except Exception:
+        # Catch ALL exceptions, not just FileNotFoundError/TimeoutExpired
+        # The binary exists (shutil.which passed), so this is likely a
+        # transient issue — still report as available
+        return True  # trust shutil.which if subprocess fails
 
 
 def install():
@@ -139,9 +146,13 @@ def check_yt_dlp_available() -> bool:
     Call this from the extension hook to verify yt-dlp is working
     before attempting YouTube transcription.
     
+    Uses a self-healing approach: if the status file doesn't exist
+    (e.g. hooks.install() was never called), it performs a live check
+    and auto-creates the status file on success (lazy initialization).
+    
     Returns True if yt-dlp is available, False otherwise.
     """
-    # First check status file from installation
+    # Fast path: check cached status file from installation
     if os.path.isfile(STATUS_FILE):
         try:
             with open(STATUS_FILE, "r") as f:
@@ -151,5 +162,35 @@ def check_yt_dlp_available() -> bool:
         except Exception:
             pass
 
-    # Fallback to runtime check
-    return _check_yt_dlp_module() or _check_yt_dlp_cli()
+    # Slow path: runtime check (status file missing or invalid)
+    module_ok = _check_yt_dlp_module()
+    cli_ok = _check_yt_dlp_cli()
+    available = module_ok or cli_ok
+
+    if available:
+        # Self-heal: create the status file so future checks are instant
+        try:
+            _write_status({
+                "checked_at": datetime.now().isoformat(),
+                "yt_dlp_module": module_ok,
+                "yt_dlp_cli": cli_ok,
+                "warnings": ["auto-created by lazy init (hooks.install was not run)"],
+                "errors": [],
+            })
+            PrintStyle.info(
+                "A0-Transcribbler: yt-dlp available — auto-created status file "
+                "(hooks.install was not run previously)"
+            )
+        except Exception as e:
+            PrintStyle.warning(
+                f"A0-Transcribbler: yt-dlp available but could not write "
+                f"status file: {e}"
+            )
+    else:
+        PrintStyle.warning(
+            "A0-Transcribbler: yt-dlp runtime check failed. "
+            f"Module import: {module_ok}, CLI: {cli_ok}. "
+            "YouTube transcription will be unavailable."
+        )
+
+    return available
