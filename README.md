@@ -1,10 +1,22 @@
 # A0-Transcribbler
 
+**📣 Voice messages become text conversations!** This plugin enables users to send
+voice memos via Telegram, Signal, WebUI, or any input channel and have them
+automatically transcribed and processed by the LLM as if they were typed text.
+
+No more typing long messages — just speak and the AI understands.
+
+---
+
 Automatic audio transcription plugin for Agent Zero. Transcribes audio file
 attachments, audio URLs, and YouTube video audio **before** LLM processing,
 injecting the transcription text directly into the conversation context.
 
 ## Features
+
+- **Voice Memo Transcription** — Send voice messages via Telegram, Signal, or
+  any platform and they're automatically converted to text for the LLM. Perfect
+  for hands-free interaction and accessibility.
 
 - **Audio File Transcription** — Automatically detects and transcribes audio
   attachments (voice messages, audio files) sent via Telegram, WebUI, or any
