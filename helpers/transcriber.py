@@ -120,14 +120,135 @@ async def transcribe_audio_file(filepath: str) -> Optional[str]:
         PrintStyle.error(f"A0-Transcribbler: transcription error for {filepath}: {e}")
         return None
 
+def _parse_subtitle_file(filepath: str) -> Optional[str]:
+    """Parse a VTT or SRT subtitle file into plain text.
+
+    Strips timestamps, cue numbers, positioning tags, and deduplicates
+    consecutive repeated lines (common in auto-generated subs).
+    """
+    try:
+        with open(filepath, "r", encoding="utf-8", errors="replace") as f:
+            content = f.read()
+
+        lines = content.splitlines()
+        text_lines: list[str] = []
+        prev_line = ""
+
+        for line in lines:
+            line = line.strip()
+
+            # Skip VTT header and metadata
+            if line.startswith("WEBVTT") or line.startswith("Kind:") or line.startswith("Language:"):
+                continue
+            # Skip NOTE blocks
+            if line.startswith("NOTE"):
+                continue
+            # Skip SRT cue numbers (pure digits)
+            if line.isdigit():
+                continue
+            # Skip timestamp lines (VTT: "00:00:01.000 --> 00:00:04.000", SRT similar)
+            if "-->" in line:
+                continue
+            # Skip empty lines
+            if not line:
+                continue
+            # Strip HTML-like tags (<c>, </c>, <b>, etc.) and VTT positioning
+            clean = re.sub(r'<[^>]+>', '', line)
+            clean = re.sub(r'\{[^}]+\}', '', clean)  # SSA/ASS style tags
+            clean = clean.strip()
+            if not clean:
+                continue
+
+            # Deduplicate consecutive identical lines (auto-gen subs repeat a lot)
+            if clean != prev_line:
+                text_lines.append(clean)
+                prev_line = clean
+
+        result = " ".join(text_lines)
+        # Collapse multiple spaces
+        result = re.sub(r'\s+', ' ', result).strip()
+        return result if result else None
+
+    except Exception as e:
+        PrintStyle.warning(f"A0-Transcribbler: subtitle parse error: {e}")
+        return None
+
+
+def _fetch_youtube_subtitles(
+    url: str,
+    tmp_dir: str,
+) -> Optional[str]:
+    """Try to fetch existing YouTube subtitles/captions via yt-dlp.
+
+    Prefers manually uploaded subtitles over auto-generated ones.
+    Returns plain text transcription or None if no subtitles available.
+    """
+    sub_path = os.path.join(tmp_dir, "subs")
+
+    # Try manually uploaded subtitles first (higher quality)
+    for sub_args in [
+        # Manual subs in English
+        ["--write-subs", "--no-write-auto-subs", "--sub-langs", "en.*,en"],
+        # Auto-generated subs in English
+        ["--write-auto-subs", "--sub-langs", "en.*,en"],
+        # Manual subs in any language
+        ["--write-subs", "--no-write-auto-subs", "--sub-langs", "all"],
+        # Auto-generated subs in any language
+        ["--write-auto-subs", "--sub-langs", "all"],
+    ]:
+        try:
+            result = subprocess.run(
+                [
+                    "yt-dlp",
+                    "--no-playlist",
+                    "--skip-download",
+                    "--sub-format", "vtt/srt/best",
+                    *sub_args,
+                    "-o", sub_path + ".%(ext)s",
+                    url,
+                ],
+                capture_output=True, text=True, timeout=30
+            )
+
+            # Look for downloaded subtitle files
+            if result.returncode == 0:
+                for fname in os.listdir(tmp_dir):
+                    fpath = os.path.join(tmp_dir, fname)
+                    if fname.startswith("subs") and os.path.isfile(fpath):
+                        ext = os.path.splitext(fname)[1].lower()
+                        if ext in (".vtt", ".srt", ".srv1", ".srv2", ".srv3", ".json3", ".ttml"):
+                            text = _parse_subtitle_file(fpath)
+                            if text and len(text) > 20:  # Sanity check
+                                sub_type = "auto-generated" if "--write-auto-subs" in sub_args else "manual"
+                                PrintStyle.success(
+                                    f"A0-Transcribbler: found {sub_type} YouTube subtitles "
+                                    f"({len(text)} chars)"
+                                )
+                                return text
+                            # Remove file if it wasn't useful
+                            try:
+                                os.remove(fpath)
+                            except OSError:
+                                pass
+
+        except subprocess.TimeoutExpired:
+            continue
+        except Exception:
+            continue
+
+    return None
+
 
 async def transcribe_youtube_url(
     url: str,
     max_duration: int = 3600,
 ) -> Optional[str]:
-    """Download audio from a YouTube URL and transcribe it.
+    """Get transcription for a YouTube video.
 
-    Uses yt-dlp to download audio, converts to WAV, and transcribes via Whisper.
+    Strategy (most efficient first):
+    1. Fetch existing YouTube subtitles/captions (instant, no Whisper needed)
+    2. Fall back to downloading audio + Whisper transcription
+
     Returns transcription text or None on failure.
     """
     try:
@@ -147,7 +268,7 @@ async def transcribe_youtube_url(
     wav_path = os.path.join(tmp_dir, "audio.wav")
 
     try:
-        # Get video info first to check duration
+        # Check duration first
         if max_duration > 0:
             info_result = subprocess.run(
                 ["yt-dlp", "--no-download", "--print", "duration", url],
@@ -163,18 +284,29 @@ async def transcribe_youtube_url(
                         )
                         return None
                 except (ValueError, TypeError):
-                    pass  # Can't parse duration, proceed anyway
+                    pass
 
+        # --- Strategy 1: Try existing YouTube subtitles (fast!) ---
+        PrintStyle.info(f"A0-Transcribbler: checking YouTube subtitles for {url}...")
+        subtitle_text = _fetch_youtube_subtitles(url, tmp_dir)
+        if subtitle_text:
+            return subtitle_text
+
+        PrintStyle.info(
+            f"A0-Transcribbler: no usable subtitles found, "
+            f"falling back to Whisper transcription..."
+        )
+
+        # --- Strategy 2: Download audio + Whisper (slower but universal) ---
         PrintStyle.info(f"A0-Transcribbler: downloading YouTube audio: {url}")
 
-        # Download audio only
         dl_result = subprocess.run(
             [
                 "yt-dlp",
                 "--no-playlist",
-                "-x",                      # extract audio
-                "--audio-format", "wav",    # convert to wav
-                "--audio-quality", "0",     # best quality
+                "-x",
+                "--audio-format", "wav",
+                "--audio-quality", "0",
                 "--postprocessor-args", "ffmpeg:-ar 16000 -ac 1",
                 "-o", audio_path + ".%(ext)s",
                 url,
@@ -230,7 +362,7 @@ async def transcribe_youtube_url(
             text = transcription_result["text"].strip()
             if text:
                 PrintStyle.success(
-                    f"A0-Transcribbler: transcribed YouTube video "
+                    f"A0-Transcribbler: Whisper-transcribed YouTube video "
                     f"({len(text)} chars)"
                 )
                 return text
