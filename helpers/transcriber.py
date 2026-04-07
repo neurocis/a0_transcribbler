@@ -17,6 +17,20 @@ from urllib.parse import urlparse
 from helpers import files, settings, whisper as whisper_helper
 from helpers.print_style import PrintStyle
 
+# Import yt-dlp availability check from hooks
+try:
+    from usr.plugins.a0_transcribbler.hooks import check_yt_dlp_available
+except ImportError:
+    def check_yt_dlp_available() -> bool:
+        """Fallback check if hooks module is unavailable."""
+        try:
+            result = subprocess.run(
+                ["yt-dlp", "--version"], capture_output=True, timeout=10
+            )
+            return result.returncode == 0
+        except (FileNotFoundError, subprocess.TimeoutExpired):
+            return False
+
 # Audio file extensions considered transcribable
 DEFAULT_AUDIO_EXTENSIONS = {
     ".ogg", ".oga", ".mp3", ".wav", ".m4a",
@@ -440,16 +454,13 @@ async def transcribe_youtube_url(
 
     Returns transcription text or None on failure.
     """
-    try:
-        # Check if yt-dlp is available
-        yt_dlp_check = subprocess.run(
-            ["yt-dlp", "--version"], capture_output=True, timeout=10
+    # Check if yt-dlp is available using centralized check
+    if not check_yt_dlp_available():
+        PrintStyle.error(
+            "A0-Transcribbler: yt-dlp is not installed. "
+            "YouTube transcription is unavailable. "
+            "Please reinstall the plugin or run: pip install yt-dlp"
         )
-        if yt_dlp_check.returncode != 0:
-            PrintStyle.warning("A0-Transcribbler: yt-dlp not available")
-            return None
-    except (FileNotFoundError, subprocess.TimeoutExpired):
-        PrintStyle.warning("A0-Transcribbler: yt-dlp not installed or not responding")
         return None
 
     tmp_dir = tempfile.mkdtemp(prefix="a0_transcribbler_yt_")
