@@ -108,6 +108,24 @@
                     </div>
                 </div>
 
+                <div class="field">
+                    <div class="field-label">
+                        <div class="field-title">Audio-Capable Model Patterns</div>
+                        <div class="field-description">
+                            One pattern per line. Uses wildcard matching (<code>*</code> = any characters).
+                            If the active chat model name matches any pattern, audio transcription
+                            is skipped and the audio passes directly to the LLM.
+                            Examples: <code>gemini-*</code>, <code>gpt-4o-audio-*</code>
+                        </div>
+                    </div>
+                    <div class="field-control">
+                        <textarea rows="4"
+                            :value="(config.audio_capable_models || []).join('\n')"
+                            @input="config.audio_capable_models = $event.target.value.split('\n').map(s => s.trim()).filter(Boolean)"
+                            placeholder="gemini-*&#10;gpt-4o-audio-*"></textarea>
+                    </div>
+                </div>
+
             </div>
         </template>
     </div>
