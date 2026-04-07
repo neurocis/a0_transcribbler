@@ -22,8 +22,24 @@ import threading
 from helpers.extension import Extension
 from helpers import plugins
 from helpers.print_style import PrintStyle
+from helpers.notification import NotificationManager, NotificationType, NotificationPriority
 
 PLUGIN_NAME = "a0_transcribbler"
+
+
+def _emit_notification(title: str, message: str, type: NotificationType = NotificationType.SUCCESS, detail: str = ""):
+    """Emit a notification to the Agent Zero notification system."""
+    try:
+        NotificationManager.send_notification(
+            type=type,
+            priority=NotificationPriority.NORMAL,
+            message=message,
+            title=title,
+            detail=detail,
+            display_time=5,
+        )
+    except Exception as e:
+        PrintStyle.warning(f"A0-Transcribbler: failed to emit notification: {e}")
 
 
 def _run_async_in_thread(coro):
@@ -175,9 +191,21 @@ class TranscribeOnMessage(Extension):
                         if include_filename:
                             header += f" ({fname})"
                         transcription_parts.append(f"{header}:\n{text}")
+                        _emit_notification(
+                            "A0-Transcribbler",
+                            f"Transcribed audio: {fname}",
+                            NotificationType.SUCCESS,
+                            detail=f"Length: {len(text)} characters"
+                        )
                 except Exception as e:
                     PrintStyle.error(
                         f"A0-Transcribbler: failed to transcribe {fname}: {e}"
+                    )
+                    _emit_notification(
+                        "A0-Transcribbler",
+                        f"Failed to transcribe: {fname}",
+                        NotificationType.ERROR,
+                        detail=str(e)
                     )
 
         # --- 2. Transcribe audio URLs found in message ---
@@ -201,10 +229,22 @@ class TranscribeOnMessage(Extension):
                         transcription_parts.append(
                             f"{label} (URL: {url}):\n{text}"
                         )
+                        _emit_notification(
+                            "A0-Transcribbler",
+                            "Transcribed audio URL",
+                            NotificationType.SUCCESS,
+                            detail=f"URL: {url}\nLength: {len(text)} characters"
+                        )
                 except Exception as e:
                     PrintStyle.error(
                         f"A0-Transcribbler: failed to transcribe audio "
                         f"URL {url}: {e}"
+                    )
+                    _emit_notification(
+                        "A0-Transcribbler",
+                        "Failed to transcribe audio URL",
+                        NotificationType.ERROR,
+                        detail=f"URL: {url}\nError: {e}"
                     )
 
         # --- 3. Transcribe YouTube URLs found in message ---
@@ -223,10 +263,22 @@ class TranscribeOnMessage(Extension):
                         transcription_parts.append(
                             f"{label} (YouTube: {url}):\n{text}"
                         )
+                        _emit_notification(
+                            "A0-Transcribbler",
+                            "Transcribed YouTube video",
+                            NotificationType.SUCCESS,
+                            detail=f"URL: {url}\nLength: {len(text)} characters"
+                        )
                 except Exception as e:
                     PrintStyle.error(
                         f"A0-Transcribbler: failed to transcribe YouTube "
                         f"{url}: {e}"
+                    )
+                    _emit_notification(
+                        "A0-Transcribbler",
+                        "Failed to transcribe YouTube video",
+                        NotificationType.ERROR,
+                        detail=f"URL: {url}\nError: {e}"
                     )
 
         # --- 4. Inject transcriptions into message ---
