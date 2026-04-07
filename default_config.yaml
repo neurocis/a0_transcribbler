@@ -6,8 +6,14 @@ audio_transcription_enabled: true
 # Enable/disable YouTube URL transcription
 youtube_transcription_enabled: true
 
+# Enable/disable audio URL transcription (scans URLs in messages for audio MIME types)
+url_audio_transcription_enabled: true
+
 # Maximum YouTube video duration in seconds (0 = no limit)
 youtube_max_duration: 3600
+
+# Maximum audio URL download size in megabytes (0 = no limit)
+url_audio_max_size: 50
 
 # Audio file extensions to detect and transcribe
 audio_extensions:

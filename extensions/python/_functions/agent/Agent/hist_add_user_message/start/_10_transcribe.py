@@ -111,8 +111,9 @@ class TranscribeOnMessage(Extension):
         config = plugins.get_plugin_config(PLUGIN_NAME, agent) or {}
         audio_enabled = config.get("audio_transcription_enabled", True)
         youtube_enabled = config.get("youtube_transcription_enabled", True)
+        url_audio_enabled = config.get("url_audio_transcription_enabled", True)
 
-        if not audio_enabled and not youtube_enabled:
+        if not audio_enabled and not youtube_enabled and not url_audio_enabled:
             return
 
         # Check if the active model natively supports audio
@@ -126,14 +127,25 @@ class TranscribeOnMessage(Extension):
             )
             audio_enabled = False  # Bypass audio transcription
 
-        if not audio_enabled and not youtube_enabled:
+        # Model bypass also applies to audio URLs (model can't fetch them,
+        # but user explicitly requested bypass parity)
+        if model_handles_audio and url_audio_enabled:
+            PrintStyle.info(
+                "A0-Transcribbler: audio-capable model detected, "
+                "skipping URL audio transcription"
+            )
+            url_audio_enabled = False
+
+        if not audio_enabled and not youtube_enabled and not url_audio_enabled:
             return
 
         # Import transcriber helpers
         from usr.plugins.a0_transcribbler.helpers.transcriber import (
             is_audio_file,
             extract_youtube_urls,
+            extract_audio_urls,
             transcribe_audio_file,
+            transcribe_audio_url,
             transcribe_youtube_url,
         )
 
@@ -168,7 +180,34 @@ class TranscribeOnMessage(Extension):
                         f"A0-Transcribbler: failed to transcribe {fname}: {e}"
                     )
 
-        # --- 2. Transcribe YouTube URLs found in message ---
+        # --- 2. Transcribe audio URLs found in message ---
+        if url_audio_enabled and has_message:
+            url_max_size = config.get("url_audio_max_size", 50) * 1024 * 1024
+            audio_urls = extract_audio_urls(message.message, max_size=url_max_size)
+
+            for audio_url_info in audio_urls:
+                url = audio_url_info["url"]
+                content_type = audio_url_info["content_type"]
+                PrintStyle.info(
+                    f"A0-Transcribbler: detected audio URL: {url} "
+                    f"({content_type})"
+                )
+
+                try:
+                    text = _run_async_in_thread(
+                        transcribe_audio_url(url, max_size=url_max_size)
+                    )
+                    if text:
+                        transcription_parts.append(
+                            f"{label} (URL: {url}):\n{text}"
+                        )
+                except Exception as e:
+                    PrintStyle.error(
+                        f"A0-Transcribbler: failed to transcribe audio "
+                        f"URL {url}: {e}"
+                    )
+
+        # --- 3. Transcribe YouTube URLs found in message ---
         if youtube_enabled and has_message:
             youtube_urls = extract_youtube_urls(message.message)
             max_duration = config.get("youtube_max_duration", 3600)
@@ -190,7 +229,7 @@ class TranscribeOnMessage(Extension):
                         f"{url}: {e}"
                     )
 
-        # --- 3. Inject transcriptions into message ---
+        # --- 4. Inject transcriptions into message ---
         if transcription_parts:
             transcription_block = "\n\n".join(transcription_parts)
             original_msg = message.message or ""

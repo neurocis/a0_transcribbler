@@ -1,7 +1,7 @@
 """A0-Transcribbler core transcription logic.
 
-Reuses Agent Zero's built-in Whisper STT engine for audio file transcription
-and yt-dlp for YouTube audio extraction.
+Reuses Agent Zero's built-in Whisper STT engine for audio file transcription,
+yt-dlp for YouTube audio extraction, and HTTP HEAD probing for audio URLs.
 """
 
 import base64
@@ -9,7 +9,10 @@ import os
 import re
 import tempfile
 import subprocess
+import urllib.request
+import urllib.error
 from typing import Optional
+from urllib.parse import urlparse
 
 from helpers import files, settings, whisper as whisper_helper
 from helpers.print_style import PrintStyle
@@ -28,6 +31,15 @@ YOUTUBE_PATTERNS = [
     re.compile(r'(?:https?://)?(?:www\.)?youtube\.com/live/([\w-]+)', re.IGNORECASE),
     re.compile(r'(?:https?://)?music\.youtube\.com/watch\?[^\s]*v=([\w-]+)', re.IGNORECASE),
 ]
+
+# Generic URL pattern for extracting http(s) URLs from text
+_URL_PATTERN = re.compile(r'https?://[^\s<>"\)\]]+', re.IGNORECASE)
+
+# MIME types considered audio
+_AUDIO_MIME_PREFIXES = ("audio/",)
+
+# Maximum default download size for audio URLs (bytes) — 50 MB
+DEFAULT_URL_AUDIO_MAX_SIZE = 50 * 1024 * 1024
 
 
 def is_audio_file(filepath: str, audio_extensions: set[str] | None = None) -> bool:
@@ -53,6 +65,183 @@ def extract_youtube_urls(text: str) -> list[str]:
             urls.append(full_url)
     return urls
 
+
+def _is_youtube_url(url: str) -> bool:
+    """Check if a URL matches any known YouTube pattern."""
+    for pattern in YOUTUBE_PATTERNS:
+        if pattern.search(url):
+            return True
+    return False
+
+
+def _probe_url_content_type(url: str, timeout: int = 10) -> Optional[str]:
+    """Send a HEAD request to determine the Content-Type of a URL.
+
+    Falls back to a partial GET (range request) if HEAD is blocked.
+    Returns the Content-Type string or None on failure.
+    """
+    for method in ("HEAD", "GET"):
+        try:
+            req = urllib.request.Request(url, method=method, headers={
+                "User-Agent": "Mozilla/5.0 (A0-Transcribbler)",
+            })
+            if method == "GET":
+                req.add_header("Range", "bytes=0-0")
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                ct = resp.headers.get("Content-Type", "")
+                if ct:
+                    return ct.split(";")[0].strip().lower()
+        except Exception:
+            if method == "HEAD":
+                continue  # Retry with GET
+            return None
+    return None
+
+
+def extract_audio_urls(
+    text: str,
+    max_size: int = DEFAULT_URL_AUDIO_MAX_SIZE,
+    timeout: int = 10,
+) -> list[dict]:
+    """Extract URLs from message text that directly serve audio content.
+
+    Performs a HEAD request on each non-YouTube URL to check its MIME type.
+    Returns a list of dicts: [{"url": str, "content_type": str}, ...]
+    """
+    seen: set[str] = set()
+    results: list[dict] = []
+
+    for match in _URL_PATTERN.finditer(text):
+        url = match.group(0).rstrip(".,;:!?")
+        if url in seen:
+            continue
+        seen.add(url)
+
+        # Skip YouTube URLs — handled by dedicated code
+        if _is_youtube_url(url):
+            continue
+
+        # Probe the URL
+        content_type = _probe_url_content_type(url, timeout=timeout)
+        if not content_type:
+            continue
+
+        if not content_type.startswith(_AUDIO_MIME_PREFIXES[0]):
+            continue
+
+        PrintStyle.info(
+            f"A0-Transcribbler: URL audio detected: {url} ({content_type})"
+        )
+        results.append({"url": url, "content_type": content_type})
+
+    return results
+
+
+async def transcribe_audio_url(
+    url: str,
+    max_size: int = DEFAULT_URL_AUDIO_MAX_SIZE,
+    timeout: int = 60,
+) -> Optional[str]:
+    """Download an audio file from a URL and transcribe it with Whisper.
+
+    Returns transcription text or None on failure.
+    """
+    tmp_dir = tempfile.mkdtemp(prefix="a0_transcribbler_url_")
+    try:
+        # Determine a reasonable filename from the URL
+        parsed = urlparse(url)
+        basename = os.path.basename(parsed.path) or "audio"
+        download_path = os.path.join(tmp_dir, basename)
+
+        # Download with size limit
+        PrintStyle.info(f"A0-Transcribbler: downloading audio URL: {url}")
+        req = urllib.request.Request(url, headers={
+            "User-Agent": "Mozilla/5.0 (A0-Transcribbler)",
+        })
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            content_length = resp.headers.get("Content-Length")
+            if content_length and int(content_length) > max_size:
+                PrintStyle.warning(
+                    f"A0-Transcribbler: audio URL too large "
+                    f"({int(content_length)} bytes > {max_size} limit): {url}"
+                )
+                return None
+
+            downloaded = 0
+            with open(download_path, "wb") as f:
+                while True:
+                    chunk = resp.read(8192)
+                    if not chunk:
+                        break
+                    downloaded += len(chunk)
+                    if downloaded > max_size:
+                        PrintStyle.warning(
+                            f"A0-Transcribbler: audio URL exceeded size limit "
+                            f"during download: {url}"
+                        )
+                        return None
+                    f.write(chunk)
+
+        if not os.path.isfile(download_path) or os.path.getsize(download_path) == 0:
+            PrintStyle.warning(f"A0-Transcribbler: empty download from {url}")
+            return None
+
+        PrintStyle.info(
+            f"A0-Transcribbler: downloaded {downloaded} bytes from {url}"
+        )
+
+        # Convert to WAV using ffmpeg
+        wav_path = os.path.join(tmp_dir, "audio.wav")
+        result = subprocess.run(
+            ["ffmpeg", "-y", "-i", download_path, "-ar", "16000", "-ac", "1",
+             "-c:a", "pcm_s16le", wav_path],
+            capture_output=True, timeout=120
+        )
+        if result.returncode != 0:
+            PrintStyle.warning(
+                f"A0-Transcribbler: ffmpeg conversion failed for URL audio: "
+                f"{result.stderr.decode('utf-8', errors='replace')[:200]}"
+            )
+            return None
+
+        # Read WAV and encode to base64
+        with open(wav_path, "rb") as f:
+            audio_bytes_b64 = base64.b64encode(f.read()).decode("utf-8")
+
+        # Transcribe using Whisper
+        stt_settings = settings.get_settings()
+        model_size = stt_settings.get("stt_model_size", "base")
+
+        PrintStyle.info(f"A0-Transcribbler: transcribing audio from {url}...")
+        transcription_result = await whisper_helper.transcribe(model_size, audio_bytes_b64)
+
+        if transcription_result and "text" in transcription_result:
+            text = transcription_result["text"].strip()
+            if text:
+                PrintStyle.success(
+                    f"A0-Transcribbler: transcribed URL audio "
+                    f"({len(text)} chars) from {url}"
+                )
+                return text
+
+        PrintStyle.warning(f"A0-Transcribbler: empty transcription for URL: {url}")
+        return None
+
+    except urllib.error.URLError as e:
+        PrintStyle.error(f"A0-Transcribbler: URL download error for {url}: {e}")
+        return None
+    except subprocess.TimeoutExpired:
+        PrintStyle.error(f"A0-Transcribbler: timeout processing URL audio: {url}")
+        return None
+    except Exception as e:
+        PrintStyle.error(f"A0-Transcribbler: URL audio transcription error for {url}: {e}")
+        return None
+    finally:
+        import shutil
+        try:
+            shutil.rmtree(tmp_dir, ignore_errors=True)
+        except Exception:
+            pass
 
 async def transcribe_audio_file(filepath: str) -> Optional[str]:
     """Transcribe an audio file using Agent Zero's Whisper STT.
