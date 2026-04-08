@@ -1,8 +1,8 @@
-name: "A0-Transcribbler"
+name: "a0-transcribbler"
 version: "1.1.0"
 author: "neurocis"
 description: "Voice messages become text conversations! Automatically transcribe audio attachments, URLs, and YouTube videos before LLM processing."
-repository: "https://github.com/neurocis/A0-Transcribbler"
+repository: "https://github.com/neurocis/a0-transcribbler"
 license: "MIT"
 
 features:
