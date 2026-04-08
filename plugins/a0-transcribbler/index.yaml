@@ -1,0 +1,64 @@
+name: "A0-Transcribbler"
+version: "1.1.0"
+author: "neurocis"
+description: "Voice messages become text conversations! Automatically transcribe audio attachments, URLs, and YouTube videos before LLM processing."
+repository: "https://github.com/neurocis/A0-Transcribbler"
+license: "MIT"
+
+features:
+  - "Voice Memo Transcription"
+  - "Audio File Transcription"
+  - "Audio URL Transcription"
+  - "YouTube Video Transcription"
+  - "Pre-LLM Injection"
+  - "Reuses Existing STT"
+
+requirements:
+  - "ffmpeg"
+  - "openai-whisper"
+  - "yt-dlp"
+
+settings:
+  - name: "audio_transcription_enabled"
+    type: "boolean"
+    default: true
+    description: "Enable/disable audio file transcription"
+  - name: "youtube_transcription_enabled"
+    type: "boolean"
+    default: true
+    description: "Enable/disable YouTube URL transcription"
+  - name: "url_audio_transcription_enabled"
+    type: "boolean"
+    default: true
+    description: "Enable/disable audio URL MIME-type scanning"
+  - name: "youtube_max_duration"
+    type: "integer"
+    default: 3600
+    description: "Max YouTube video length in seconds (0 = no limit)"
+  - name: "url_audio_max_size"
+    type: "integer"
+    default: 50
+    description: "Max audio URL download size in MB"
+  - name: "transcription_label"
+    type: "string"
+    default: "[Transcription]"
+    description: "Label prefix for transcription blocks"
+  - name: "include_filename"
+    type: "boolean"
+    default: true
+    description: "Include filename in transcription header"
+  - name: "model_bypass_enabled"
+    type: "boolean"
+    default: true
+    description: "Skip audio transcription for audio-capable models"
+
+tags:
+  - "audio"
+  - "transcription"
+  - "voice"
+  - "speech-to-text"
+  - "accessibility"
+  - "multimedia"
+
+thumbnail: "thumbnail.jpg"
+category: "media"
