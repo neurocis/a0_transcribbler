@@ -16,8 +16,9 @@ from helpers.print_style import PrintStyle
 
 # Plugin directory (where this file lives)
 PLUGIN_DIR = os.path.dirname(os.path.abspath(__file__))
+PLUGIN_LIB = os.path.join(PLUGIN_DIR, "lib")
+PLUGIN_BIN = os.path.join(PLUGIN_LIB, "bin")
 STATUS_FILE = os.path.join(PLUGIN_DIR, ".dependency_status.json")
-
 
 def _write_status(status: dict) -> None:
     """Write dependency status to a JSON file for runtime checks."""
@@ -38,11 +39,21 @@ def _check_yt_dlp_module() -> bool:
 
 
 def _check_yt_dlp_cli() -> bool:
-    """Check if yt-dlp CLI is available."""
-    # Fast check first: is the binary on PATH?
+    """Check if yt-dlp CLI is available.
+    
+    Checks plugin-local lib/bin first, then system PATH.
+    """
     import shutil
-    if not shutil.which("yt-dlp"):
-        return False
+    
+    # Check plugin-local installation first
+    local_yt_dlp = os.path.join(PLUGIN_BIN, "yt-dlp")
+    if os.path.isfile(local_yt_dlp) and os.access(local_yt_dlp, os.X_OK):
+        return True
+    
+    # Check system PATH
+    if shutil.which("yt-dlp"):
+        return True
+    
     try:
         result = subprocess.run(
             ["yt-dlp", "--version"],
@@ -54,7 +65,6 @@ def _check_yt_dlp_cli() -> bool:
         # The binary exists (shutil.which passed), so this is likely a
         # transient issue — still report as available
         return True  # trust shutil.which if subprocess fails
-
 
 def install():
     """Called by the plugin installer after the plugin is placed.
@@ -77,13 +87,19 @@ def install():
         PrintStyle.success("A0-Transcribbler: yt-dlp module already installed")
         status["yt_dlp_module"] = True
     else:
-        PrintStyle.info("A0-Transcribbler: installing yt-dlp module...")
+        PrintStyle.info("A0-Transcribbler: installing yt-dlp module to plugin lib directory...")
+        
+        # Ensure plugin lib directory exists
+        os.makedirs(PLUGIN_LIB, exist_ok=True)
+        
         result = subprocess.run(
-            [sys.executable, "-m", "pip", "install", "--quiet", "yt-dlp"],
+            [sys.executable, "-m", "pip", "install", "--quiet", "--target", PLUGIN_LIB, "yt-dlp"],
             capture_output=True, text=True, timeout=120
         )
         if result.returncode == 0 and _check_yt_dlp_module():
-            PrintStyle.success("A0-Transcribbler: yt-dlp module installed successfully")
+            PrintStyle.success(
+                f"A0-Transcribbler: yt-dlp module installed to {PLUGIN_LIB}"
+            )
             status["yt_dlp_module"] = True
         else:
             error_msg = result.stderr[:500] if result.stderr else "Unknown installation error"
@@ -93,28 +109,43 @@ def install():
             status["errors"].append(f"yt-dlp module installation failed: {error_msg}")
             # Continue - YouTube transcription will be unavailable but audio files still work
 
-    # --- Check and install yt-dlp CLI ---
     if _check_yt_dlp_cli():
-        PrintStyle.success("A0-Transcribbler: yt-dlp CLI available")
+        local_yt_dlp = os.path.join(PLUGIN_BIN, "yt-dlp")
+        if os.path.isfile(local_yt_dlp):
+            PrintStyle.success(
+                f"A0-Transcribbler: yt-dlp CLI available at {local_yt_dlp}"
+            )
+        else:
+            PrintStyle.success("A0-Transcribbler: yt-dlp CLI available on system PATH")
         status["yt_dlp_cli"] = True
     else:
         # CLI might be available via the module even if not on PATH
         # Try installing again to ensure CLI is available
         PrintStyle.info("A0-Transcribbler: ensuring yt-dlp CLI is available...")
+        
+        # Ensure plugin lib directory exists
+        os.makedirs(PLUGIN_LIB, exist_ok=True)
+        
         result = subprocess.run(
-            [sys.executable, "-m", "pip", "install", "--quiet", "yt-dlp"],
+            [sys.executable, "-m", "pip", "install", "--quiet", "--target", PLUGIN_LIB, "yt-dlp"],
             capture_output=True, text=True, timeout=120
         )
         if _check_yt_dlp_cli():
-            PrintStyle.success("A0-Transcribbler: yt-dlp CLI now available")
+            local_yt_dlp = os.path.join(PLUGIN_BIN, "yt-dlp")
+            if os.path.isfile(local_yt_dlp):
+                PrintStyle.success(
+                    f"A0-Transcribbler: yt-dlp CLI installed to {local_yt_dlp}"
+                )
+            else:
+                PrintStyle.success("A0-Transcribbler: yt-dlp CLI now available")
             status["yt_dlp_cli"] = True
         else:
             # Not critical - the module can be used directly
             PrintStyle.warning(
-                "A0-Transcribbler: yt-dlp CLI not on PATH; "
+                "A0-Transcribbler: yt-dlp CLI not available; "
                 "YouTube transcription will use Python module fallback"
             )
-            status["warnings"].append("yt-dlp CLI not on PATH")
+            status["warnings"].append("yt-dlp CLI not available")
             # Still mark as working if module is available
             status["yt_dlp_cli"] = status["yt_dlp_module"]
 

@@ -22,15 +22,28 @@ from helpers.print_style import PrintStyle
 def _resolve_yt_dlp_path() -> str:
     """Find the full path to yt-dlp binary.
 
-    Tries shutil.which first, then checks known installation locations.
-    Returns the full path or 'yt-dlp' as bare fallback (relies on PATH).
+    Priority order:
+    1. Plugin-local lib/bin/yt-dlp (installed by plugin hooks)
+    2. Standard PATH lookup (shutil.which)
+    3. Known installation locations (venv, system, user)
+    4. Bare 'yt-dlp' fallback (hopes PATH works at call time)
     """
-    # Try standard PATH lookup
+    # Calculate plugin directory (parent of helpers/ directory)
+    plugin_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    plugin_lib = os.path.join(plugin_dir, "lib")
+    plugin_bin = os.path.join(plugin_lib, "bin")
+    
+    # 1. Check plugin-local installation first (installed by hooks.py)
+    local_yt_dlp = os.path.join(plugin_bin, "yt-dlp")
+    if os.path.isfile(local_yt_dlp) and os.access(local_yt_dlp, os.X_OK):
+        return local_yt_dlp
+
+    # 2. Try standard PATH lookup
     found = shutil.which("yt-dlp")
     if found:
         return found
 
-    # Check known locations (covers venv, pip --user, system installs)
+    # 3. Check known locations (covers venv, pip --user, system installs)
     for candidate in [
         "/opt/venv/bin/yt-dlp",
         "/opt/venv-a0/bin/yt-dlp",
@@ -41,7 +54,7 @@ def _resolve_yt_dlp_path() -> str:
         if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
             return candidate
 
-    # Last resort: return bare name and hope PATH works at call time
+    # 4. Last resort: return bare name and hope PATH works at call time
     return "yt-dlp"
 
 
