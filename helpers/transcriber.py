@@ -45,8 +45,15 @@ def _resolve_yt_dlp_path() -> str:
     return "yt-dlp"
 
 
-# Resolve once at import time
-YT_DLP = _resolve_yt_dlp_path()
+def _get_yt_dlp() -> str:
+    """Lazy resolution of yt-dlp path at call time.
+    
+    This allows yt-dlp to be installed after module load time
+    (e.g., post-startup plugin installs) and still be found.
+    Calls _resolve_yt_dlp_path() each time to get the latest path.
+    """
+    return _resolve_yt_dlp_path()
+
 DEFAULT_AUDIO_EXTENSIONS = {
     ".ogg", ".oga", ".mp3", ".wav", ".m4a",
     ".opus", ".flac", ".aac", ".wma", ".webm",
@@ -417,7 +424,7 @@ def _fetch_youtube_subtitles(
         try:
             result = subprocess.run(
                 [
-                    YT_DLP,
+                    _get_yt_dlp(),
                     "--no-playlist",
                     "--skip-download",
                     "--sub-format", "vtt/srt/best",
@@ -483,7 +490,7 @@ async def transcribe_youtube_url(
         # Check duration first
         if max_duration > 0:
             info_result = subprocess.run(
-                [YT_DLP, "--no-download", "--print", "duration", url],
+                [_get_yt_dlp(), "--no-download", "--print", "duration", url],
                 capture_output=True, text=True, timeout=30
             )
             if info_result.returncode == 0:
@@ -514,7 +521,7 @@ async def transcribe_youtube_url(
 
         dl_result = subprocess.run(
             [
-                YT_DLP,
+                _get_yt_dlp(),
                 "--no-playlist",
                 "-x",
                 "--audio-format", "wav",
