@@ -1,0 +1,8 @@
+{
+  "yt_dlp_module": false,
+  "yt_dlp_cli": true,
+  "yt_dlp_path": "/a0/usr/plugins/a0_transcribbler/bin/yt-dlp",
+  "installed_at": "2026-04-10T11:51:00-07:00",
+  "persistent": true,
+  "errors": []
+}

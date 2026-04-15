@@ -1,5 +1,5 @@
-name: a0-transcribbler
-title: a0-transcribbler
+name: a0_transcribbler
+title: a0_transcribbler
 description: >
   Automatically transcribes audio file attachments and YouTube video audio
   before LLM processing. Reuses Agent Zero's built-in Whisper STT engine.

@@ -1,4 +1,4 @@
-"""A0-Transcribbler: intercept user messages before LLM processing.
+"""a0_transcribbler: intercept user messages before LLM processing.
 
 This extension hooks into Agent.hist_add_user_message (start) to detect
 audio file attachments and YouTube URLs, transcribe them, and prepend the
@@ -39,7 +39,7 @@ def _emit_notification(title: str, message: str, type: NotificationType = Notifi
             display_time=5,
         )
     except Exception as e:
-        PrintStyle.warning(f"A0-Transcribbler: failed to emit notification: {e}")
+        PrintStyle.warning(f"a0_transcribbler: failed to emit notification: {e}")
 
 
 def _run_async_in_thread(coro):
@@ -92,7 +92,7 @@ def _is_model_audio_capable(agent, config: dict) -> bool:
         pattern_lower = pattern.strip().lower()
         if fnmatch.fnmatch(model_name, pattern_lower):
             PrintStyle.info(
-                f"A0-Transcribbler: model '{model_name}' matches "
+                f"a0_transcribbler: model '{model_name}' matches "
                 f"audio-capable pattern '{pattern}' — bypassing audio transcription"
             )
             return True
@@ -138,7 +138,7 @@ class TranscribeOnMessage(Extension):
         # If model handles audio, skip audio transcription but still do YouTube
         if model_handles_audio and audio_enabled:
             PrintStyle.info(
-                "A0-Transcribbler: audio-capable model detected, "
+                "a0_transcribbler: audio-capable model detected, "
                 "skipping audio file transcription (passthrough)"
             )
             audio_enabled = False  # Bypass audio transcription
@@ -147,7 +147,7 @@ class TranscribeOnMessage(Extension):
         # but user explicitly requested bypass parity)
         if model_handles_audio and url_audio_enabled:
             PrintStyle.info(
-                "A0-Transcribbler: audio-capable model detected, "
+                "a0_transcribbler: audio-capable model detected, "
                 "skipping URL audio transcription"
             )
             url_audio_enabled = False
@@ -180,7 +180,7 @@ class TranscribeOnMessage(Extension):
                     continue
 
                 fname = os.path.basename(attachment)
-                PrintStyle.info(f"A0-Transcribbler: detected audio: {fname}")
+                PrintStyle.info(f"a0_transcribbler: detected audio: {fname}")
 
                 try:
                     text = _run_async_in_thread(
@@ -192,17 +192,17 @@ class TranscribeOnMessage(Extension):
                             header += f" ({fname})"
                         transcription_parts.append(f"{header}:\n{text}")
                         _emit_notification(
-                            "A0-Transcribbler",
+                            "a0_transcribbler",
                             f"Transcribed audio: {fname}",
                             NotificationType.SUCCESS,
                             detail=f"Length: {len(text)} characters"
                         )
                 except Exception as e:
                     PrintStyle.error(
-                        f"A0-Transcribbler: failed to transcribe {fname}: {e}"
+                        f"a0_transcribbler: failed to transcribe {fname}: {e}"
                     )
                     _emit_notification(
-                        "A0-Transcribbler",
+                        "a0_transcribbler",
                         f"Failed to transcribe: {fname}",
                         NotificationType.ERROR,
                         detail=str(e)
@@ -217,7 +217,7 @@ class TranscribeOnMessage(Extension):
                 url = audio_url_info["url"]
                 content_type = audio_url_info["content_type"]
                 PrintStyle.info(
-                    f"A0-Transcribbler: detected audio URL: {url} "
+                    f"a0_transcribbler: detected audio URL: {url} "
                     f"({content_type})"
                 )
 
@@ -230,18 +230,18 @@ class TranscribeOnMessage(Extension):
                             f"{label} (URL: {url}):\n{text}"
                         )
                         _emit_notification(
-                            "A0-Transcribbler",
+                            "a0_transcribbler",
                             "Transcribed audio URL",
                             NotificationType.SUCCESS,
                             detail=f"URL: {url}\nLength: {len(text)} characters"
                         )
                 except Exception as e:
                     PrintStyle.error(
-                        f"A0-Transcribbler: failed to transcribe audio "
+                        f"a0_transcribbler: failed to transcribe audio "
                         f"URL {url}: {e}"
                     )
                     _emit_notification(
-                        "A0-Transcribbler",
+                        "a0_transcribbler",
                         "Failed to transcribe audio URL",
                         NotificationType.ERROR,
                         detail=f"URL: {url}\nError: {e}"
@@ -253,7 +253,7 @@ class TranscribeOnMessage(Extension):
             max_duration = config.get("youtube_max_duration", 3600)
 
             for url in youtube_urls:
-                PrintStyle.info(f"A0-Transcribbler: detected YouTube: {url}")
+                PrintStyle.info(f"a0_transcribbler: detected YouTube: {url}")
 
                 try:
                     text = _run_async_in_thread(
@@ -264,18 +264,18 @@ class TranscribeOnMessage(Extension):
                             f"{label} (YouTube: {url}):\n{text}"
                         )
                         _emit_notification(
-                            "A0-Transcribbler",
+                            "a0_transcribbler",
                             "Transcribed YouTube video",
                             NotificationType.SUCCESS,
                             detail=f"URL: {url}\nLength: {len(text)} characters"
                         )
                 except Exception as e:
                     PrintStyle.error(
-                        f"A0-Transcribbler: failed to transcribe YouTube "
+                        f"a0_transcribbler: failed to transcribe YouTube "
                         f"{url}: {e}"
                     )
                     _emit_notification(
-                        "A0-Transcribbler",
+                        "a0_transcribbler",
                         "Failed to transcribe YouTube video",
                         NotificationType.ERROR,
                         detail=f"URL: {url}\nError: {e}"
@@ -291,7 +291,7 @@ class TranscribeOnMessage(Extension):
                 f"{original_msg}"
             )
             PrintStyle.success(
-                f"A0-Transcribbler: injected {len(transcription_parts)} "
+                f"a0_transcribbler: injected {len(transcription_parts)} "
                 f"transcription(s) into message"
             )
 

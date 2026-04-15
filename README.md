@@ -1,4 +1,4 @@
-# A0-Transcribbler
+# a0_transcribbler
 
 **📣 Voice messages become text conversations!** This plugin enables users to send
 voice memos via Telegram, Signal, WebUI, or any input channel and have them
