@@ -1,4 +1,4 @@
-"""A0-Transcribbler install hooks.
+"""a0_transcribbler install hooks.
 
 Installs yt-dlp into the framework runtime for YouTube audio extraction.
 Whisper and ffmpeg are already available in the base Agent Zero image.
@@ -26,7 +26,7 @@ def _write_status(status: dict) -> None:
         with open(STATUS_FILE, "w") as f:
             json.dump(status, f, indent=2)
     except Exception as e:
-        PrintStyle.warning(f"A0-Transcribbler: could not write status file: {e}")
+        PrintStyle.warning(f"a0_transcribbler: could not write status file: {e}")
 
 
 def _check_yt_dlp_module() -> bool:
@@ -72,7 +72,7 @@ def install():
     Ensures yt-dlp is installed and creates a status file for runtime checks.
     Returns 0 on success, non-zero on critical failure.
     """
-    PrintStyle.info("A0-Transcribbler: checking dependencies...")
+    PrintStyle.info("a0_transcribbler: checking dependencies...")
 
     status = {
         "checked_at": datetime.now().isoformat(),
@@ -84,10 +84,10 @@ def install():
 
     # --- Check and install yt-dlp Python module ---
     if _check_yt_dlp_module():
-        PrintStyle.success("A0-Transcribbler: yt-dlp module already installed")
+        PrintStyle.success("a0_transcribbler: yt-dlp module already installed")
         status["yt_dlp_module"] = True
     else:
-        PrintStyle.info("A0-Transcribbler: installing yt-dlp module to plugin lib directory...")
+        PrintStyle.info("a0_transcribbler: installing yt-dlp module to plugin lib directory...")
         
         # Ensure plugin lib directory exists
         os.makedirs(PLUGIN_LIB, exist_ok=True)
@@ -98,13 +98,13 @@ def install():
         )
         if result.returncode == 0 and _check_yt_dlp_module():
             PrintStyle.success(
-                f"A0-Transcribbler: yt-dlp module installed to {PLUGIN_LIB}"
+                f"a0_transcribbler: yt-dlp module installed to {PLUGIN_LIB}"
             )
             status["yt_dlp_module"] = True
         else:
             error_msg = result.stderr[:500] if result.stderr else "Unknown installation error"
             PrintStyle.error(
-                f"A0-Transcribbler: yt-dlp module installation failed: {error_msg}"
+                f"a0_transcribbler: yt-dlp module installation failed: {error_msg}"
             )
             status["errors"].append(f"yt-dlp module installation failed: {error_msg}")
             # Continue - YouTube transcription will be unavailable but audio files still work
@@ -113,15 +113,15 @@ def install():
         local_yt_dlp = os.path.join(PLUGIN_BIN, "yt-dlp")
         if os.path.isfile(local_yt_dlp):
             PrintStyle.success(
-                f"A0-Transcribbler: yt-dlp CLI available at {local_yt_dlp}"
+                f"a0_transcribbler: yt-dlp CLI available at {local_yt_dlp}"
             )
         else:
-            PrintStyle.success("A0-Transcribbler: yt-dlp CLI available on system PATH")
+            PrintStyle.success("a0_transcribbler: yt-dlp CLI available on system PATH")
         status["yt_dlp_cli"] = True
     else:
         # CLI might be available via the module even if not on PATH
         # Try installing again to ensure CLI is available
-        PrintStyle.info("A0-Transcribbler: ensuring yt-dlp CLI is available...")
+        PrintStyle.info("a0_transcribbler: ensuring yt-dlp CLI is available...")
         
         # Ensure plugin lib directory exists
         os.makedirs(PLUGIN_LIB, exist_ok=True)
@@ -134,15 +134,15 @@ def install():
             local_yt_dlp = os.path.join(PLUGIN_BIN, "yt-dlp")
             if os.path.isfile(local_yt_dlp):
                 PrintStyle.success(
-                    f"A0-Transcribbler: yt-dlp CLI installed to {local_yt_dlp}"
+                    f"a0_transcribbler: yt-dlp CLI installed to {local_yt_dlp}"
                 )
             else:
-                PrintStyle.success("A0-Transcribbler: yt-dlp CLI now available")
+                PrintStyle.success("a0_transcribbler: yt-dlp CLI now available")
             status["yt_dlp_cli"] = True
         else:
             # Not critical - the module can be used directly
             PrintStyle.warning(
-                "A0-Transcribbler: yt-dlp CLI not available; "
+                "a0_transcribbler: yt-dlp CLI not available; "
                 "YouTube transcription will use Python module fallback"
             )
             status["warnings"].append("yt-dlp CLI not available")
@@ -152,16 +152,16 @@ def install():
     # --- Summary ---
     if status["errors"]:
         PrintStyle.error(
-            f"A0-Transcribbler: initialization completed with errors. "
+            f"a0_transcribbler: initialization completed with errors. "
             f"YouTube transcription may be unavailable. Check status file for details."
         )
     elif status["warnings"]:
         PrintStyle.warning(
-            f"A0-Transcribbler: initialization completed with warnings. "
+            f"a0_transcribbler: initialization completed with warnings. "
             f"See status file for details."
         )
     else:
-        PrintStyle.success("A0-Transcribbler: dependency check complete")
+        PrintStyle.success("a0_transcribbler: dependency check complete")
 
     # Write status file for runtime checks
     _write_status(status)
@@ -209,17 +209,17 @@ def check_yt_dlp_available() -> bool:
                 "errors": [],
             })
             PrintStyle.info(
-                "A0-Transcribbler: yt-dlp available — auto-created status file "
+                "a0_transcribbler: yt-dlp available — auto-created status file "
                 "(hooks.install was not run previously)"
             )
         except Exception as e:
             PrintStyle.warning(
-                f"A0-Transcribbler: yt-dlp available but could not write "
+                f"a0_transcribbler: yt-dlp available but could not write "
                 f"status file: {e}"
             )
     else:
         PrintStyle.warning(
-            "A0-Transcribbler: yt-dlp runtime check failed. "
+            "a0_transcribbler: yt-dlp runtime check failed. "
             f"Module import: {module_ok}, CLI: {cli_ok}. "
             "YouTube transcription will be unavailable."
         )

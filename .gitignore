@@ -7,3 +7,4 @@ config.json
 dist/
 build/
 .env
+.a0proj/

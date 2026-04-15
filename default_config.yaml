@@ -1,4 +1,4 @@
-# A0-Transcribbler default configuration
+# a0_transcribbler default configuration
 
 # Enable/disable audio file transcription
 audio_transcription_enabled: true
