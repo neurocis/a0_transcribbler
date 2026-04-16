@@ -16,6 +16,7 @@ from helpers.print_style import PrintStyle
 
 # Plugin directory (where this file lives)
 PLUGIN_DIR = os.path.dirname(os.path.abspath(__file__))
+PLUGIN_LIB = os.path.join(PLUGIN_DIR, "lib")
 STATUS_FILE = os.path.join(PLUGIN_DIR, ".dependency_status.json")
 
 
@@ -77,9 +78,10 @@ def install():
         PrintStyle.success("a0_transcribbler: yt-dlp module already installed")
         status["yt_dlp_module"] = True
     else:
-        PrintStyle.info("a0_transcribbler: installing yt-dlp module...")
+        PrintStyle.info("a0_transcribbler: installing yt-dlp module to plugin lib directory...")
+        os.makedirs(PLUGIN_LIB, exist_ok=True)
         result = subprocess.run(
-            [sys.executable, "-m", "pip", "install", "--quiet", "yt-dlp"],
+            [sys.executable, "-m", "pip", "install", "--quiet", "--target", PLUGIN_LIB, "yt-dlp"],
             capture_output=True, text=True, timeout=120
         )
         if result.returncode == 0 and _check_yt_dlp_module():
@@ -101,8 +103,9 @@ def install():
         # CLI might be available via the module even if not on PATH
         # Try installing again to ensure CLI is available
         PrintStyle.info("a0_transcribbler: ensuring yt-dlp CLI is available...")
+        os.makedirs(PLUGIN_LIB, exist_ok=True)
         result = subprocess.run(
-            [sys.executable, "-m", "pip", "install", "--quiet", "yt-dlp"],
+            [sys.executable, "-m", "pip", "install", "--quiet", "--target", PLUGIN_LIB, "yt-dlp"],
             capture_output=True, text=True, timeout=120
         )
         if _check_yt_dlp_cli():
@@ -193,4 +196,67 @@ def check_yt_dlp_available() -> bool:
             "YouTube transcription will be unavailable."
         )
 
-    return available
+
+
+def uninstall():
+    """Called when the plugin is being uninstalled.
+    
+    Cleans up plugin-local dependencies and status file.
+    Returns 0 on success, non-zero on failure.
+    """
+    PrintStyle.info("a0_transcribbler: cleaning up...")
+    
+    # Remove plugin-local lib directory (yt-dlp and dependencies)
+    if os.path.exists(PLUGIN_LIB):
+        try:
+            import shutil
+            shutil.rmtree(PLUGIN_LIB)
+            PrintStyle.success("a0_transcribbler: cleaned up yt-dlp dependencies")
+        except Exception as e:
+            PrintStyle.error(f"a0_transcribbler: failed to clean up lib directory: {e}")
+            return 1
+    
+    # Remove status file
+    if os.path.exists(STATUS_FILE):
+        try:
+            os.remove(STATUS_FILE)
+            PrintStyle.success("a0_transcribbler: removed status file")
+        except Exception as e:
+            PrintStyle.error(f"a0_transcribbler: failed to remove status file: {e}")
+            return 1
+    
+    PrintStyle.success("a0_transcribbler: uninstall complete")
+    return 0
+
+
+def pre_update():
+    """Called before the plugin is updated.
+    
+    Performs pre-update preparation and validation.
+    Returns 0 on success, non-zero to abort update.
+    """
+    PrintStyle.info("a0_transcribbler: preparing for update...")
+    
+    # Backup current status for rollback if needed
+    backup_status = None
+    if os.path.exists(STATUS_FILE):
+        try:
+            with open(STATUS_FILE, "r") as f:
+                backup_status = json.load(f)
+            PrintStyle.info("a0_transcribbler: backed up current status")
+        except Exception as e:
+            PrintStyle.warning(f"a0_transcribbler: could not backup status: {e}")
+    
+    # Optional: clear old plugin-local lib for clean reinstall on update
+    # Uncomment if updates should force clean dependency installation
+    # if os.path.exists(PLUGIN_LIB):
+    #     try:
+    #         import shutil
+    #         shutil.rmtree(PLUGIN_LIB)
+    #         PrintStyle.info("a0_transcribbler: cleared old dependencies for clean update")
+    #     except Exception as e:
+    #         PrintStyle.error(f"a0_transcribbler: failed to clear old libs: {e}")
+    #         return 1
+    
+    PrintStyle.success("a0_transcribbler: ready for update")
+    return 0
