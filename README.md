@@ -99,4 +99,4 @@ Remind me to buy groceries
 
 ## Version
 
-1.1.0
+2.0.0
